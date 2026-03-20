@@ -187,7 +187,12 @@ function makeCardSlide(w) {
   el.dataset.word = w.word;
   el.dataset.status = st;
 
-  const usageArr = Array.isArray(w.usage) ? w.usage : (w.usage ? [w.usage] : []);
+  // Normalize usage — handle plain string, array, or accidentally stringified JSON
+  let usageArr = w.usage;
+  if (typeof usageArr === 'string') {
+    try { usageArr = JSON.parse(usageArr); } catch { usageArr = [usageArr]; }
+  }
+  if (!Array.isArray(usageArr)) usageArr = usageArr ? [usageArr] : [];
   const examples = usageArr.slice(0, 3);
   const usageHTML = examples.length
     ? `<div class="section-label" style="margin-top:2px">Examples</div>
@@ -314,6 +319,7 @@ let quizN         = 10;
 let quizQuestions = [];
 let quizCur       = 0;
 let quizScore     = { c:0, w:0 };
+let quizWrongWords = []; // words answered incorrectly this session
 
 function toggleLang() {
   quizJPtoEN = !quizJPtoEN;
@@ -339,6 +345,7 @@ function startQuiz() {
   }
   quizScore = { c:0, w:0 };
   quizCur   = 0;
+  quizWrongWords = [];
   quizQuestions = buildQuizPool();
 
   document.getElementById('quiz-start-screen').style.display  = 'none';
@@ -446,7 +453,13 @@ function answerQuiz(chosen, q, optsEl) {
   const ok = chosen === q.correct;
   if (ok) quizScore.c++; else quizScore.w++;
 
-  if (!ok) wordStatus[q.word] = 'unknown';
+  if (!ok) {
+    wordStatus[q.word] = 'unknown';
+    if (!quizWrongWords.find(w => w.word === q.word)) {
+      const entry = words.find(w => w.word === q.word);
+      if (entry) quizWrongWords.push({ ...entry, yourAnswer: chosen, correct: q.correct });
+    }
+  }
   if (ok)  {
     quizCooldown[q.word] = Date.now() + COOLDOWN_MS;
     if (wordStatus[q.word] === 'unknown') wordStatus[q.word] = 'known';
@@ -475,7 +488,6 @@ function showQuizResult() {
 
   document.getElementById('quiz-active').style.display        = 'none';
   document.getElementById('quiz-result-screen').style.display = 'flex';
-  document.getElementById('quiz-result-screen').style.flexDirection = 'column';
 
   document.getElementById('qr-correct').textContent = quizScore.c;
   document.getElementById('qr-wrong').textContent   = quizScore.w;
@@ -484,6 +496,49 @@ function showQuizResult() {
   const pctEl = document.getElementById('qr-pct');
   pctEl.textContent = pct + '%';
   pctEl.className   = `qr-pct ${pct >= 70 ? 'good' : pct >= 40 ? 'mid' : 'bad'}`;
+
+  // Reset toggle
+  const toggleBtn  = document.getElementById('qr-wrong-toggle-btn');
+  const listEl     = document.getElementById('qr-wrong-list');
+  const toggleWrap = document.getElementById('qr-wrong-toggle-wrap');
+  toggleBtn.classList.remove('open');
+  listEl.style.display = 'none';
+
+  // Build missed words list
+  listEl.innerHTML = '';
+  if (quizWrongWords.length === 0) {
+    listEl.innerHTML = '<div class="qr-no-wrong">No mistakes.</div>';
+    toggleBtn.textContent = 'No mistakes.';
+    toggleBtn.style.pointerEvents = 'none';
+    toggleBtn.style.opacity = '.5';
+    // hide chevron
+    toggleBtn.innerHTML = 'No mistakes.';
+  } else {
+    toggleBtn.style.pointerEvents = '';
+    toggleBtn.style.opacity = '';
+    toggleBtn.innerHTML = `See incorrect answers <svg id="qr-toggle-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>`;
+    quizWrongWords.forEach(w => {
+      const item = document.createElement('div');
+      item.className = 'qr-wrong-item';
+      item.innerHTML = `
+        <div class="qr-wrong-word">${escHtml(w.word)}</div>
+        <div class="qr-wrong-jp">${escHtml(w.jp||'')}</div>
+        <div class="qr-wrong-ans">
+          <span class="qr-ans-wrong">${escHtml(w.yourAnswer||'')}</span>
+          <span class="qr-ans-arrow">→</span>
+          <span class="qr-ans-correct">${escHtml(w.correct||'')}</span>
+        </div>`;
+      listEl.appendChild(item);
+    });
+  }
+}
+
+function toggleMissedWords() {
+  const btn    = document.getElementById('qr-wrong-toggle-btn');
+  const list   = document.getElementById('qr-wrong-list');
+  const isOpen = btn.classList.contains('open');
+  btn.classList.toggle('open', !isOpen);
+  list.style.display = isOpen ? 'none' : 'flex';
 }
 
 /* ══════════════════════════════════════════
