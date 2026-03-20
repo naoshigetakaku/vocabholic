@@ -170,21 +170,28 @@ html, body {
   flex:1; min-height:0;
   overflow-y:scroll; overflow-x:hidden;
   scroll-snap-type:y mandatory; scrollbar-width:none;
+  /* Ensure snap container height matches available space exactly */
+  overscroll-behavior-y:none;
 }
 #card-feed::-webkit-scrollbar { display:none; }
 
 .card-slide {
-  width:100%; height:100%;
+  width:100%;
+  height:100%; /* fill scroll snap container exactly */
+  min-height:0;
   scroll-snap-align:start; scroll-snap-stop:always;
   display:flex; align-items:center; justify-content:center;
-  padding:14px; flex-shrink:0;
+  padding:12px 14px; flex-shrink:0;
   transition:height .28s ease, padding .28s ease;
 }
 .card-slide.swiped-right,
 .card-slide.swiped-left { height:0; padding:0; overflow:hidden; }
 
 .flashcard {
-  width:100%; max-width:360px; aspect-ratio:3/4;
+  width:100%; max-width:360px;
+  /* Height is constrained by the parent slide — use max-height to prevent overflow */
+  aspect-ratio:3/4;
+  max-height:calc(100% - 4px);
   position:relative; perspective:1400px; user-select:none;
 }
 .card-inner {
